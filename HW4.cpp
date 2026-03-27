@@ -4,7 +4,7 @@
 
 class Simulation {
     private:
-        const int MAX_PROCESSES;
+        int MAX_PROCESSES;
         double avg_arrival_rate;
         double avg_service_rate;
         int scheduling_policy;      // 0 for FCFS, 1 for SJF
