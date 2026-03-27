@@ -9,19 +9,19 @@ class Simulation {
         const int MAX_PROCESSES;
 
         bool server_busy;
-        std::vector<Process> ready_queue;
-        struct Process {
+        std::vector<Event> ready_queue;
+        struct Event {
             /* data */
             int id;
             int arrival_time;
-            bool is_arriving;
+            bool isArrival;
         };    
 
-        void handle_arrival(Process *process) {
+        void handle_arrival(Event *e) {
             // Handle arrival event
         }
         
-        void handle_departure(Process *process) {
+        void handle_departure(Event *e) {
             // Handle departure event
         }
 
@@ -35,6 +35,18 @@ class Simulation {
 
         void run() {
             // Run the simulation
+            while (processes_count <= MAX_PROCESSES) {
+                Event next_event;
+                clock = next_event.arrival_time;
+
+                if (next_event.isArrival) {
+                    handle_arrival(&next_event);
+                } else {
+                    handle_departure(&next_event);
+                }
+
+                
+            }
         }
 };
 
