@@ -41,8 +41,16 @@ class Simulation {
         }
         
         void handle_departure(Event *e, double finish_time) {
-            // Handle departure event
-
+            if (!ready_queue.empty()) {
+                e = &ready_queue.front();
+                ready_queue.erase(ready_queue.begin());
+                e.time = clock + finish_time;
+                schedule_event(&e);
+            } else {
+                server_busy = false;
+                // TODO: do reporting
+                processes_count++;
+            }
         }
 
         void schedule_event(Event *e) {
