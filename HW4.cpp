@@ -4,25 +4,50 @@
 
 class Simulation {
     private:
-        int clock;
-        int processes_count;
         const int MAX_PROCESSES;
-
+        
+        double clock;
+        int processes_count;
         bool server_busy;
-        std::vector<Event> ready_queue;
+        // ready_queue and event_queue are vectors of Event structs, which will 
+        // be used to manage the events in the simulation
+        std::vector<Event> ready_queue;     // sends processes to our server
+        std::vector<Event> event_queue;     // manages all events in the simulation
         struct Event {
             /* data */
             int id;
-            int arrival_time;
+            int time;
             bool isArrival;
         };    
 
-        void handle_arrival(Event *e) {
-            // Handle arrival event
+        void handle_arrival(Event *e, double service_time) {
+            if (!server_busy) {
+                server_busy = true;
+                
+                // Edit event e to be a departure event then schedule e in 
+                // correct place in event queue based on condition
+                e.id = e->id;
+                e.time = clock + service_time;
+                e.isArrival = false;
+                schedule_event(&e);
+            } else {
+                ready_queue.push_back(*e);
+                // --------------------------------
+                // TODO: generate a Poisson random variable to determine the 
+                // time of the next arrival event and update e's time accordingly
+                // --------------------------------
+                e.time = clock + generated_poisson_rv;
+            }
         }
         
-        void handle_departure(Event *e) {
+        void handle_departure(Event *e, double finish_time) {
             // Handle departure event
+
+        }
+
+        void schedule_event(Event *e) {
+            // TODO:
+            // Schedule event e in the event queue based on its arrival time
         }
 
     public:
@@ -37,7 +62,7 @@ class Simulation {
             // Run the simulation
             while (processes_count <= MAX_PROCESSES) {
                 Event next_event;
-                clock = next_event.arrival_time;
+                clock = next_event.time;
 
                 if (next_event.isArrival) {
                     handle_arrival(&next_event);
@@ -45,7 +70,7 @@ class Simulation {
                     handle_departure(&next_event);
                 }
 
-                
+
             }
         }
 };
