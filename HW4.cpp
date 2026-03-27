@@ -82,6 +82,7 @@ class Simulation {
                 } else {
                     handle_departure(&next_event);
                 }
+                event_queue.erase(event_queue.begin());
             }
         }
 };
