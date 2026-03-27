@@ -11,14 +11,13 @@ class Simulation {
         bool server_busy;
         // ready_queue and event_queue are vectors of Event structs, which will 
         // be used to manage the events in the simulation
-        std::vector<Event> ready_queue;     // sends processes to our server
-        std::vector<Event> event_queue;     // manages all events in the simulation
         struct Event {
-            /* data */
             int id;
             int time;
             bool isArrival;
         };    
+        std::vector<Event> ready_queue;     // sends processes to our server
+        std::vector<Event> event_queue;     // manages all events in the simulation
 
         void handle_arrival(Event *e, double service_time) {
             if (!server_busy) {
@@ -37,6 +36,7 @@ class Simulation {
                 // time of the next arrival event and update e's time accordingly
                 // --------------------------------
                 e.time = clock + generated_poisson_rv;
+                schedule_event(&e);
             }
         }
         
@@ -47,7 +47,7 @@ class Simulation {
 
         void schedule_event(Event *e) {
             // TODO:
-            // Schedule event e in the event queue based on its arrival time
+            // Schedule event e in the event queue based on its time
         }
 
     public:
