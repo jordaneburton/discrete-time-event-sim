@@ -43,6 +43,8 @@ class Simulation {
         void handle_departure(Event *e, double finish_time) {
             if (!ready_queue.empty()) {
                 e = &ready_queue.front();
+                // Edit event e to be a departure event then schedule e in 
+                // correct place
                 ready_queue.erase(ready_queue.begin());
                 e.time = clock + finish_time;
                 schedule_event(&e);
@@ -54,8 +56,11 @@ class Simulation {
         }
 
         void schedule_event(Event *e) {
-            // TODO:
-            // Schedule event e in the event queue based on its time
+            auto it = event_queue.begin();
+            while (it != event_queue.end() && it->time <= e->time) {
+                ++it;
+            }
+            event_queue.insert(it, *e);
         }
 
     public:
