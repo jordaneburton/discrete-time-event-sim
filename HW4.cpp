@@ -91,6 +91,19 @@ class Simulation {
 
 int main() {
     const int PROCESS_LIMIT = 10000;
+
+    // input parameters for the simulation (entered by user)
+    // ***NOTE: there is no error handling for user input yet***
+    double avg_arrival_rate, 
+           avg_service_rate;
+    int scheduling_policy;      // 0 for FCFS, 1 for SJF
+    std::cout << "Enter average arrival rate: ";
+    std::cin >> avg_arrival_rate;
+    std::cout << "Enter average service rate: ";
+    std::cin >> avg_service_rate;
+    std::cout << "Enter scheduling policy (0 for FCFS, 1 for SJF): ";
+    std::cin >> scheduling_policy;
+
     Simulation sim(PROCESS_LIMIT);
     sim.run();
 
