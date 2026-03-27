@@ -69,7 +69,7 @@ class Simulation {
         void run() {
             // Run the simulation
             while (processes_count <= MAX_PROCESSES) {
-                Event next_event;
+                Event next_event = event_queue.front();
                 clock = next_event.time;
 
                 if (next_event.isArrival) {
@@ -77,8 +77,6 @@ class Simulation {
                 } else {
                     handle_departure(&next_event);
                 }
-
-
             }
         }
 };
