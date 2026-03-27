@@ -5,6 +5,9 @@
 class Simulation {
     private:
         const int MAX_PROCESSES;
+        double avg_arrival_rate;
+        double avg_service_rate;
+        int scheduling_policy;      // 0 for FCFS, 1 for SJF
         
         double clock;
         int processes_count;
@@ -64,8 +67,15 @@ class Simulation {
         }
 
     public:
-        Simulation(const int max_procs) : MAX_PROCESSES(max_procs) {
+        Simulation(const int max_procs, 
+                   double arrival_rate, 
+                   double service_rate, 
+                   int policy)
+            : MAX_PROCESSES(max_procs) {
             // Initialize simulation parameters
+            avg_arrival_rate = arrival_rate;
+            avg_service_rate = service_rate;
+            scheduling_policy = policy;
             clock = 0;
             processes_count = 0;
             server_busy = false;
@@ -104,7 +114,10 @@ int main() {
     std::cout << "Enter scheduling policy (0 for FCFS, 1 for SJF): ";
     std::cin >> scheduling_policy;
 
-    Simulation sim(PROCESS_LIMIT);
+    Simulation sim(PROCESS_LIMIT, 
+                   avg_arrival_rate, 
+                   avg_service_rate, 
+                   scheduling_policy);
     sim.run();
 
     return 0;
