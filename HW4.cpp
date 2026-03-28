@@ -2,12 +2,9 @@
 #include <vector>
 #include <cstdlib>
 #include <cmath>
+#include <random>
 
-double exponential_random(double lambda) {
-    double random_number = (double)rand() / RAND_MAX;
-    double result = -1 * log(random_number) / lambda;
-    return result;
-}
+std::mt19937 rng(std::random_device{}());
 
 class Simulation {
     private:
@@ -29,7 +26,27 @@ class Simulation {
         };    
         std::vector<Event> ready_queue;     // sends processes to our server
         std::vector<Event> event_queue;     // manages all events in the simulation
+        void generate_initial_event() {
+            Event e;
+            e.id = 0;
+            e.time = 0;
+            e.isArrival = true;
+            e.service_time = exponential_random(avg_service_rate);
+            event_queue.push_back(e);
+        }
 
+        double exponential_random(double lambda) {
+            std::uniform_real_distribution<double> dist(0.0, 1.0);
+            double random_number = dist(rng);
+            double result = -1 * log(random_number) / lambda;
+            return result;
+}
+
+        double generate_arrival_time(double lambda) {
+            std::uniform_real_distribution<double> dist(lambda * 0.5, lambda * 1.5);
+            double random_lambda = dist(rng);
+            return exponential_random(random_lambda);
+        }
         void handle_arrival(Event *e) {
             if (!server_busy) {
                 server_busy = true;
@@ -47,7 +64,7 @@ class Simulation {
                 // --------------------------------
                 Event new_e;
                 new_e.id = e->id + 1;
-                new_e.time = clock + 0;    // TODO: update this to use poisson random variable
+                new_e.time = clock + generate_arrival_time(avg_arrival_rate);
                 new_e.isArrival = true;
                 new_e.service_time = exponential_random(avg_service_rate);
                 schedule_event(&new_e);
@@ -60,7 +77,8 @@ class Simulation {
                 // Edit incoming event e to be a departure event then schedule
                 // e in correct place
                 ready_queue.erase(ready_queue.begin());
-                incoming_e->time = clock + incoming_e->time;
+                incoming_e->time = clock + incoming_e->service_time;
+                incoming_e->isArrival = false;
                 schedule_event(incoming_e);
             } else {
                 server_busy = false;
