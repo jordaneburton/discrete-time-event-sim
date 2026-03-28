@@ -153,7 +153,6 @@ class Simulation {
                     handle_departure(&next_event);
                 }
                 event_queue.erase(event_queue.begin());
-                std::cout << processes_count << " " << clock << std::endl;
             }
         }
 
