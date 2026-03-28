@@ -8,11 +8,17 @@ std::mt19937 rng(std::random_device{}());
 
 class Simulation {
     private:
+        // simulation parameters
         int MAX_PROCESSES;
         double avg_arrival_rate;
         double avg_service_rate;
         int scheduling_policy;      // 0 for FCFS, 1 for SJF
-        
+
+        // for reporting purposes
+        double accumulated_turnaround_time = 0.0;
+        double accumulated_waiting_time = 0.0;
+
+        // state variables and simulation management variables
         double clock;
         int processes_count;
         bool server_busy;
@@ -92,6 +98,7 @@ class Simulation {
         void place_event_in_ready_queue(Event *e) {
             if (scheduling_policy == 0) {           // FCFS
                 ready_queue.push_back(*e);
+
             } else if (scheduling_policy == 1 ) {   // SJF
                 auto it = ready_queue.begin();
                 while (it != ready_queue.end() && 
@@ -104,6 +111,11 @@ class Simulation {
         }
 
     public:
+        double avg_turnaround_time;
+        double total_throughput;
+        double cpu_utilization;
+        double avg_processes_waiting;
+
         Simulation(const int max_procs, 
                    double arrival_rate, 
                    double service_rate, 
