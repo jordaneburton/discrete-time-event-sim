@@ -11,13 +11,18 @@ class Simulation {
         // simulation parameters
         int MAX_PROCESSES;
         double avg_arrival_rate;
-        double avg_service_rate;
+        double avg_service_time;
         int scheduling_policy;      // 0 for FCFS, 1 for SJF
 
         // for reporting purposes
         double accumulated_turnaround_time = 0.0;
         double accumulated_waiting_time = 0.0;
         double accumulated_busy_time = 0.0;
+
+        double avg_turnaround_time;
+        double total_throughput;
+        double cpu_utilization;
+        double avg_processes_waiting;
 
         // state variables and simulation management variables
         double clock;
@@ -27,9 +32,10 @@ class Simulation {
         // be used to manage the events in the simulation
         struct Event {
             int id;
-            int time;
+            double time;
             bool isArrival;
-            double service_time;    // only used for SJF scheduling
+            double arrival_time;
+            double service_time;
         };    
         std::vector<Event> ready_queue;     // sends processes to our server
         std::vector<Event> event_queue;     // manages all events in the simulation
@@ -37,8 +43,9 @@ class Simulation {
             Event e;
             e.id = 0;
             e.time = 0;
+            e.arrival_time = 0;
             e.isArrival = true;
-            e.service_time = exponential_random(avg_service_rate);
+            e.service_time = exponential_random(avg_service_time);
             event_queue.push_back(e);
         }
 
@@ -56,40 +63,42 @@ class Simulation {
                 // Edit event e to be a departure event then schedule e in 
                 // correct place in event queue based on condition
                 // Also update accumulated waiting time for reporting purposes
-                accumulated_waiting_time += clock - e->time;
+                e->arrival_time = clock;
                 e->time = clock + e->service_time;
                 e->isArrival = false;
                 schedule_event(e);
             } else {
                 place_event_in_ready_queue(e);
-                
-                // generate a random poisson variable to determine the time of  
-                // the next arrival event and update e's time accordingly
-                Event new_e;
-                new_e.id = e->id + 1;
-                new_e.time = clock + exponential_random(avg_arrival_rate);
-                new_e.isArrival = true;
-                new_e.service_time = exponential_random(avg_service_rate);
-                schedule_event(&new_e);
             }
+            
+            // generate a random poisson variable to determine the time of  
+            // the next arrival event and update e's time accordingly
+            Event new_e;
+            new_e.id = e->id + 1;
+            new_e.time = clock + exponential_random(avg_arrival_rate);
+            new_e.arrival_time = new_e.time;
+            new_e.isArrival = true;
+            new_e.service_time = exponential_random(avg_service_time);
+            schedule_event(&new_e);
         }
         
         void handle_departure(Event *e) {
             if (!ready_queue.empty()) {
-                Event *incoming_e = &ready_queue.front();
+                Event incoming_e = ready_queue.front();
                 // Edit incoming event e to be a departure event then schedule
                 // e in correct place
                 ready_queue.erase(ready_queue.begin());
-                incoming_e->time = clock + incoming_e->service_time;
-                incoming_e->isArrival = false;
-                schedule_event(incoming_e);
+                incoming_e.time = clock + incoming_e.service_time;
+                incoming_e.isArrival = false;
+                accumulated_waiting_time += clock - incoming_e.arrival_time;
+                schedule_event(&incoming_e);
             } else {
                 server_busy = false;
                 // reporting purposes
-                processes_count++;
-                accumulated_turnaround_time += clock - e->time;
+                accumulated_turnaround_time += clock - e->arrival_time;
                 accumulated_busy_time += e->service_time;
             }
+            processes_count++;
         }
 
         void schedule_event(Event *e) {
@@ -116,19 +125,15 @@ class Simulation {
         }
 
     public:
-        double avg_turnaround_time;
-        double total_throughput;
-        double cpu_utilization;
-        double avg_processes_waiting;
 
         Simulation(const int max_procs, 
                    double arrival_rate, 
-                   double service_rate, 
+                   double service_time, 
                    int policy)
             : MAX_PROCESSES(max_procs) {
             // Initialize simulation parameters
             avg_arrival_rate = arrival_rate;
-            avg_service_rate = service_rate;
+            avg_service_time = service_time;
             scheduling_policy = policy;
             clock = 0;
             processes_count = 0;
@@ -136,6 +141,7 @@ class Simulation {
         }
 
         void run() {
+            generate_initial_event();
             // Run the simulation
             while (processes_count <= MAX_PROCESSES) {
                 Event next_event = event_queue.front();
@@ -147,6 +153,7 @@ class Simulation {
                     handle_departure(&next_event);
                 }
                 event_queue.erase(event_queue.begin());
+                std::cout << processes_count << " " << clock << std::endl;
             }
         }
 
@@ -168,7 +175,7 @@ class Simulation {
 int main(int argc, char *argv[]) {
     if (argc != 4) {
         std::cerr << "Usage: " << argv[0] 
-                  << " <avg_arrival_rate> <avg_service_rate> <scheduling_policy>"
+                  << " <avg_arrival_rate> <avg_service_time> <scheduling_policy>"
                   << std::endl;
         return 1;
     }
@@ -177,16 +184,16 @@ int main(int argc, char *argv[]) {
     // input parameters for the simulation (entered by user)
     // ***NOTE: there is no error handling for user input yet***
     double avg_arrival_rate, 
-           avg_service_rate;
+           avg_service_time;
     int scheduling_policy;      // 0 for FCFS, 1 for SJF
 
     avg_arrival_rate = std::atof(argv[1]);
-    avg_service_rate = std::atof(argv[2]);
+    avg_service_time = 1 / std::atof(argv[2]);
     scheduling_policy = std::atoi(argv[3]);
 
     Simulation sim(PROCESS_LIMIT, 
                     avg_arrival_rate, 
-                    avg_service_rate, 
+                    avg_service_time, 
                     scheduling_policy);
     sim.run();
     sim.output_results();
