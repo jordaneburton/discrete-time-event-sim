@@ -124,7 +124,13 @@ class Simulation {
 
 
 
-int main() {
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        std::cerr << "Usage: " << argv[0] 
+                  << " <avg_arrival_rate> <avg_service_rate> <scheduling_policy>"
+                  << std::endl;
+        return 1;
+    }
     const int PROCESS_LIMIT = 10000;
 
     // input parameters for the simulation (entered by user)
@@ -132,26 +138,16 @@ int main() {
     double avg_arrival_rate, 
            avg_service_rate;
     int scheduling_policy;      // 0 for FCFS, 1 for SJF
-    
-    char exit_input;
-    do
-    {    
-        std::cout << "Enter average arrival rate: ";
-        std::cin >> avg_arrival_rate;
-        std::cout << "Enter average service rate: ";
-        std::cin >> avg_service_rate;
-        std::cout << "Enter scheduling policy (0 for FCFS, 1 for SJF): ";
-        std::cin >> scheduling_policy;
-    
-        Simulation sim(PROCESS_LIMIT, 
-                       avg_arrival_rate, 
-                       avg_service_rate, 
-                       scheduling_policy);
-        sim.run();
-        
-        std::cout << "Simulation complete. Do you want to run another simulation? (y/n): ";
-        std::cin >> exit_input;
-    } while (exit_input != 'n' && exit_input != 'N');
 
+    avg_arrival_rate = std::atof(argv[1]);
+    avg_service_rate = std::atof(argv[2]);
+    scheduling_policy = std::atoi(argv[3]);
+
+    Simulation sim(PROCESS_LIMIT, 
+                    avg_arrival_rate, 
+                    avg_service_rate, 
+                    scheduling_policy);
+    sim.run();
+    
     return 0;
 }
