@@ -1,6 +1,13 @@
 #include <iostream>
 #include <vector>
+#include <cstdlib>
+#include <cmath>
 
+double exponential_random(double lambda) {
+    double random_number = (double)rand() / RAND_MAX;
+    double result = -1 * log(random_number) / lambda;
+    return result;
+}
 
 class Simulation {
     private:
@@ -18,39 +25,43 @@ class Simulation {
             int id;
             int time;
             bool isArrival;
+            double service_time;    // only used for SJF scheduling
         };    
         std::vector<Event> ready_queue;     // sends processes to our server
         std::vector<Event> event_queue;     // manages all events in the simulation
 
-        void handle_arrival(Event *e, double service_time) {
+        void handle_arrival(Event *e) {
             if (!server_busy) {
                 server_busy = true;
                 
                 // Edit event e to be a departure event then schedule e in 
                 // correct place in event queue based on condition
-                e.id = e->id;
-                e.time = clock + service_time;
-                e.isArrival = false;
-                schedule_event(&e);
+                e->time = clock + e->service_time;
+                e->isArrival = false;
+                schedule_event(e);
             } else {
-                ready_queue.push_back(*e);
+                place_event_in_ready_queue(e);
                 // --------------------------------
                 // TODO: generate a Poisson random variable to determine the 
                 // time of the next arrival event and update e's time accordingly
                 // --------------------------------
-                e.time = clock + generated_poisson_rv;
-                schedule_event(&e);
+                Event new_e;
+                new_e.id = e->id + 1;
+                new_e.time = clock + 0;    // TODO: update this to use poisson random variable
+                new_e.isArrival = true;
+                new_e.service_time = exponential_random(avg_service_rate);
+                schedule_event(&new_e);
             }
         }
         
-        void handle_departure(Event *e, double finish_time) {
+        void handle_departure(Event *e) {
             if (!ready_queue.empty()) {
-                e = &ready_queue.front();
-                // Edit event e to be a departure event then schedule e in 
-                // correct place
+                Event *incoming_e = &ready_queue.front();
+                // Edit incoming event e to be a departure event then schedule
+                // e in correct place
                 ready_queue.erase(ready_queue.begin());
-                e.time = clock + finish_time;
-                schedule_event(&e);
+                incoming_e->time = clock + incoming_e->time;
+                schedule_event(incoming_e);
             } else {
                 server_busy = false;
                 // TODO: do reporting
@@ -64,6 +75,20 @@ class Simulation {
                 ++it;
             }
             event_queue.insert(it, *e);
+        }
+
+        void place_event_in_ready_queue(Event *e) {
+            if (scheduling_policy == 0) {           // FCFS
+                ready_queue.push_back(*e);
+            } else if (scheduling_policy == 1 ) {   // SJF
+                auto it = ready_queue.begin();
+                while (it != ready_queue.end() && 
+                       it->service_time <= e->service_time) 
+                {
+                    ++it;
+                }
+                ready_queue.insert(it, *e);
+            }
         }
 
     public:
