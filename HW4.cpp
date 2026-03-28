@@ -20,7 +20,7 @@ class Simulation {
         // be used to manage the events in the simulation
         struct Event {
             int id;
-            int time;
+            int arrival_time;
             bool isArrival;
             double service_time;    // only used for SJF scheduling
         };    
@@ -29,7 +29,7 @@ class Simulation {
         void generate_initial_event() {
             Event e;
             e.id = 0;
-            e.time = 0;
+            e.arrival_time = 0;
             e.isArrival = true;
             e.service_time = exponential_random(avg_service_rate);
             event_queue.push_back(e);
@@ -40,20 +40,14 @@ class Simulation {
             double random_number = dist(rng);
             double result = -1 * log(random_number) / lambda;
             return result;
-}
-
-        double generate_arrival_time(double lambda) {
-            std::uniform_real_distribution<double> dist(lambda * 0.5, lambda * 1.5);
-            double random_lambda = dist(rng);
-            return exponential_random(random_lambda);
         }
+
         void handle_arrival(Event *e) {
             if (!server_busy) {
                 server_busy = true;
                 
                 // Edit event e to be a departure event then schedule e in 
                 // correct place in event queue based on condition
-                e->time = clock + e->service_time;
                 e->isArrival = false;
                 schedule_event(e);
             } else {
@@ -64,7 +58,7 @@ class Simulation {
                 // --------------------------------
                 Event new_e;
                 new_e.id = e->id + 1;
-                new_e.time = clock + generate_arrival_time(avg_arrival_rate);
+                new_e.arrival_time = clock + exponential_random(avg_arrival_rate);
                 new_e.isArrival = true;
                 new_e.service_time = exponential_random(avg_service_rate);
                 schedule_event(&new_e);
@@ -77,7 +71,7 @@ class Simulation {
                 // Edit incoming event e to be a departure event then schedule
                 // e in correct place
                 ready_queue.erase(ready_queue.begin());
-                incoming_e->time = clock + incoming_e->service_time;
+                incoming_e->arrival_time = clock + incoming_e->service_time;
                 incoming_e->isArrival = false;
                 schedule_event(incoming_e);
             } else {
@@ -89,7 +83,7 @@ class Simulation {
 
         void schedule_event(Event *e) {
             auto it = event_queue.begin();
-            while (it != event_queue.end() && it->time <= e->time) {
+            while (it != event_queue.end() && it->arrival_time <= e->arrival_time) {
                 ++it;
             }
             event_queue.insert(it, *e);
@@ -128,7 +122,7 @@ class Simulation {
             // Run the simulation
             while (processes_count <= MAX_PROCESSES) {
                 Event next_event = event_queue.front();
-                clock = next_event.time;
+                clock = next_event.arrival_time;
 
                 if (next_event.isArrival) {
                     handle_arrival(&next_event);
