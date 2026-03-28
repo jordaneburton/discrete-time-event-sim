@@ -17,6 +17,7 @@ class Simulation {
         // for reporting purposes
         double accumulated_turnaround_time = 0.0;
         double accumulated_waiting_time = 0.0;
+        double accumulated_busy_time = 0.0;
 
         // state variables and simulation management variables
         double clock;
@@ -26,7 +27,7 @@ class Simulation {
         // be used to manage the events in the simulation
         struct Event {
             int id;
-            int arrival_time;
+            int time;
             bool isArrival;
             double service_time;    // only used for SJF scheduling
         };    
@@ -35,7 +36,7 @@ class Simulation {
         void generate_initial_event() {
             Event e;
             e.id = 0;
-            e.arrival_time = 0;
+            e.time = 0;
             e.isArrival = true;
             e.service_time = exponential_random(avg_service_rate);
             event_queue.push_back(e);
@@ -54,17 +55,19 @@ class Simulation {
                 
                 // Edit event e to be a departure event then schedule e in 
                 // correct place in event queue based on condition
+                // Also update accumulated waiting time for reporting purposes
+                accumulated_waiting_time += clock - e->time;
+                e->time = clock + e->service_time;
                 e->isArrival = false;
                 schedule_event(e);
             } else {
                 place_event_in_ready_queue(e);
-                // --------------------------------
-                // TODO: generate a Poisson random variable to determine the 
-                // time of the next arrival event and update e's time accordingly
-                // --------------------------------
+                
+                // generate a random poisson variable to determine the time of  
+                // the next arrival event and update e's time accordingly
                 Event new_e;
                 new_e.id = e->id + 1;
-                new_e.arrival_time = clock + exponential_random(avg_arrival_rate);
+                new_e.time = clock + exponential_random(avg_arrival_rate);
                 new_e.isArrival = true;
                 new_e.service_time = exponential_random(avg_service_rate);
                 schedule_event(&new_e);
@@ -77,19 +80,21 @@ class Simulation {
                 // Edit incoming event e to be a departure event then schedule
                 // e in correct place
                 ready_queue.erase(ready_queue.begin());
-                incoming_e->arrival_time = clock + incoming_e->service_time;
+                incoming_e->time = clock + incoming_e->service_time;
                 incoming_e->isArrival = false;
                 schedule_event(incoming_e);
             } else {
                 server_busy = false;
-                // TODO: do reporting
+                // reporting purposes
                 processes_count++;
+                accumulated_turnaround_time += clock - e->time;
+                accumulated_busy_time += e->service_time;
             }
         }
 
         void schedule_event(Event *e) {
             auto it = event_queue.begin();
-            while (it != event_queue.end() && it->arrival_time <= e->arrival_time) {
+            while (it != event_queue.end() && it->time <= e->time) {
                 ++it;
             }
             event_queue.insert(it, *e);
@@ -134,7 +139,7 @@ class Simulation {
             // Run the simulation
             while (processes_count <= MAX_PROCESSES) {
                 Event next_event = event_queue.front();
-                clock = next_event.arrival_time;
+                clock = next_event.time;
 
                 if (next_event.isArrival) {
                     handle_arrival(&next_event);
@@ -143,6 +148,18 @@ class Simulation {
                 }
                 event_queue.erase(event_queue.begin());
             }
+        }
+
+        void output_results() {
+            avg_turnaround_time = accumulated_turnaround_time / processes_count;
+            total_throughput = processes_count / clock;
+            cpu_utilization = accumulated_busy_time / clock;
+            avg_processes_waiting = (accumulated_waiting_time / processes_count) * avg_arrival_rate;
+
+            std::cout << avg_turnaround_time << std::endl;
+            std::cout << total_throughput << std::endl;
+            std::cout << cpu_utilization << std::endl;
+            std::cout << avg_processes_waiting << std::endl;
         }
 };
 
@@ -172,6 +189,6 @@ int main(int argc, char *argv[]) {
                     avg_service_rate, 
                     scheduling_policy);
     sim.run();
-    
+    sim.output_results();
     return 0;
 }
