@@ -18,7 +18,7 @@ if __name__ == "__main__":
     service_time = sys.argv[2]
     scenario = sys.argv[3]
     num_cpus = sys.argv[4] if len(sys.argv) > 4 else "1"
-    arrival_rates = list(range(10, 31))
+    arrival_rates = list(range(50, 151, 10))
 
     # results[scenario] = list of [turnaround, throughput, utilization, avg_waiting] per arrival rate
     results = {}

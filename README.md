@@ -1,5 +1,5 @@
 # discrete-time-event-sim
-A discrete time event simulator for an M/M/1 queuing system representing CPU scheduling, based on First-Come First-Served (FCFS) and Shortest Job First (SJF) algorithms. The project runs a Python program to visualize the data, while C++ is used to do calculations.
+A discrete time event simulator for an M/M/N queuing system representing CPU scheduling, based on First-Come First-Served (FCFS). The program can run two scenarios, one where we use private ready queues and another where we use a global shared ready queue. The project runs a Python program to visualize the data, while C++ is used to do calculations.
 
 ## Requirements
 The following must be installed on your system in order to run:
@@ -12,6 +12,6 @@ Once you have fulfilled the requirements, simply compile your C++ program and ru
 ```
 g++ <cpp_file> <cpp_exe>
 
-python3 run_sim.py ./<cpp_exe> <average service time>
+python3 run_sim.py ./<cpp_exe> <average service time> <scenario> <number of CPUs>
 ```
 Note that if the average service time is too large, the scheduler becomes overloaded and the simulator might stall or error out.
