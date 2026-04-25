@@ -5,7 +5,69 @@
 #include <cmath>
 #include <random>
 
-std::mt19937 rng(42);  // Fixed seed for reproducibility
+std::mt19937 rng(42);
+
+// Process structure to track timing metadata
+struct Process {
+    int id;
+    double arrival_time;
+    double service_time;
+    double start_time;
+    double finish_time;
+    
+    double turnaround_time() const {
+        return finish_time - arrival_time;
+    }
+};
+
+// CPU class to encapsulate per-CPU state and behavior
+class CPU {
+    private:
+        int cpu_id;
+        bool busy;
+        Process* current_process;
+        std::deque<Process> ready_queue;
+        
+    public:
+        CPU(int id) : cpu_id(id), busy(false), current_process(nullptr) {}
+        
+        ~CPU() {
+            if (current_process) delete current_process;
+        }
+        
+        bool is_busy() const { return busy; }
+        
+        void set_busy(bool b) { busy = b; }
+        
+        void enqueue(const Process& proc) {
+            ready_queue.push_back(proc);
+        }
+        
+        Process dequeue() {
+            Process proc = ready_queue.front();
+            ready_queue.pop_front();
+            return proc;
+        }
+        
+        int queue_length() const {
+            return ready_queue.size();
+        }
+        
+        bool has_ready_process() const {
+            return !ready_queue.empty();
+        }
+        
+        void set_current_process(const Process& proc) {
+            current_process = new Process(proc);
+        }
+        
+        Process* get_current_process() { return current_process; }
+        
+        void clear_current_process() {
+            if (current_process) delete current_process;
+            current_process = nullptr;
+        }
+};
 
 class Simulation {
     private:
@@ -13,29 +75,14 @@ class Simulation {
         int MAX_PROCESSES;
         double avg_arrival_rate;
         double avg_service_time;
-        int scheduling_policy;      // 0 for FCFS, 1 for SJF
-
-        // Process structure to track timing metadata
-        struct Process {
-            int id;
-            double arrival_time;
-            double service_time;
-            double start_time;
-            double finish_time;
-            
-            double turnaround_time() const {
-                return finish_time - arrival_time;
-            }
-            
-            bool operator<(const Process& other) const {
-                return service_time < other.service_time;
-            }
-        };
+        int scenario;               // 1 or 2
+        int num_cpus;               // number of CPUs
 
         // Event structure
         struct Event {
             double time;
             int event_type;  // 0 = ARRIVAL, 1 = DEPARTURE
+            int cpu_id;      // which CPU this event is for
             Process process;
             
             bool operator<(const Event& other) const {
@@ -52,18 +99,20 @@ class Simulation {
         // State variables
         double clock = 0.0;
         int completed_count = 0;
-        bool server_busy = false;
-        Process* current_process = nullptr;
+        std::vector<CPU> cpus;
         
         std::vector<Event> event_queue;
-        std::deque<Process> fcfs_queue;
-        std::vector<Process> sjf_queue;
         int next_pid = 0;
 
         double exponential_random(double lambda) {
             std::uniform_real_distribution<double> dist(0.0, 1.0);
             double random_number = dist(rng);
             return -1.0 * log(random_number) / lambda;
+        }
+
+        int select_random_cpu() {
+            std::uniform_int_distribution<int> dist(0, num_cpus - 1);
+            return dist(rng);
         }
 
         void insert_event(const Event& e) {
@@ -74,36 +123,12 @@ class Simulation {
             event_queue.insert(it, e);
         }
 
-        void enqueue_ready(const Process& proc) {
-            if (scheduling_policy == 0) {  // FCFS
-                fcfs_queue.push_back(proc);
-            } else {  // SJF
-                auto it = sjf_queue.begin();
-                while (it != sjf_queue.end() && it->service_time <= proc.service_time) {
-                    ++it;
-                }
-                sjf_queue.insert(it, proc);
+        int total_ready_queue_len() const {
+            int total = 0;
+            for (const auto& cpu : cpus) {
+                total += cpu.queue_length();
             }
-        }
-
-        Process dequeue_ready() {
-            Process proc;
-            if (scheduling_policy == 0) {  // FCFS
-                proc = fcfs_queue.front();
-                fcfs_queue.pop_front();
-            } else {  // SJF
-                proc = sjf_queue.front();
-                sjf_queue.erase(sjf_queue.begin());
-            }
-            return proc;
-        }
-
-        int ready_queue_len() const {
-            if (scheduling_policy == 0) {
-                return fcfs_queue.size();
-            } else {
-                return sjf_queue.size();
-            }
+            return total;
         }
 
         void handle_arrival(const Process& proc) {
@@ -120,52 +145,60 @@ class Simulation {
             Event next_arrival_event;
             next_arrival_event.time = next_arrival_time;
             next_arrival_event.event_type = 0;  // ARRIVAL
+            next_arrival_event.cpu_id = -1;     // not assigned to a CPU yet
             next_arrival_event.process = next_proc;
             insert_event(next_arrival_event);
 
+            // Select a random CPU for this process
+            int selected_cpu = select_random_cpu();
+            CPU& cpu = cpus[selected_cpu];
+
             // Handle current process
-            if (!server_busy) {
+            if (!cpu.is_busy()) {
                 // CPU is free, start serving immediately
-                server_busy = true;
-                current_process = new Process(proc);
-                current_process->start_time = clock;
+                cpu.set_busy(true);
+                cpu.set_current_process(proc);
+                Process* current = cpu.get_current_process();
+                current->start_time = clock;
                 
                 Event departure_event;
-                departure_event.time = clock + current_process->service_time;
+                departure_event.time = clock + current->service_time;
                 departure_event.event_type = 1;  // DEPARTURE
-                departure_event.process = *current_process;
+                departure_event.cpu_id = selected_cpu;
+                departure_event.process = *current;
                 insert_event(departure_event);
             } else {
                 // CPU is busy, put in ready queue
-                enqueue_ready(proc);
+                cpu.enqueue(proc);
             }
         }
 
-        void handle_departure(const Process& proc) {
+        void handle_departure(const Process& proc, int cpu_id) {
+            CPU& cpu = cpus[cpu_id];
+            
             Process finished_proc = proc;
             finished_proc.finish_time = clock;
             accumulated_turnaround_time += finished_proc.turnaround_time();
             accumulated_busy_time += finished_proc.service_time;
             completed_count++;
             
-            if (ready_queue_len() > 0) {
+            if (cpu.has_ready_process()) {
                 // Serve next process from ready queue
-                Process next_proc = dequeue_ready();
+                Process next_proc = cpu.dequeue();
                 next_proc.start_time = clock;
-                current_process = new Process(next_proc);
+                cpu.set_current_process(next_proc);
                 
+                Process* current = cpu.get_current_process();
                 Event departure_event;
-                departure_event.time = clock + next_proc.service_time;
+                departure_event.time = clock + current->service_time;
                 departure_event.event_type = 1;  // DEPARTURE
-                departure_event.process = next_proc;
+                departure_event.cpu_id = cpu_id;
+                departure_event.process = *current;
                 insert_event(departure_event);
             } else {
                 // No more processes waiting, CPU becomes idle
-                server_busy = false;
-                if (current_process != nullptr) {
-                    delete current_process;
-                    current_process = nullptr;
-                }
+                cpu.set_busy(false);
+                cpu.clear_current_process();
             }
         }
 
@@ -174,11 +207,17 @@ class Simulation {
         Simulation(const int max_procs, 
                    double arrival_rate, 
                    double service_time, 
-                   int policy)
+                   int scen,
+                   int cpus_count)
             : MAX_PROCESSES(max_procs),
               avg_arrival_rate(arrival_rate),
               avg_service_time(service_time),
-              scheduling_policy(policy) {
+              scenario(scen),
+              num_cpus(cpus_count) {
+            // Initialize CPU objects
+            for (int i = 0; i < num_cpus; ++i) {
+                this->cpus.emplace_back(i);
+            }
         }
 
         void run() {
@@ -194,6 +233,7 @@ class Simulation {
             Event first_event;
             first_event.time = inter_arrival;
             first_event.event_type = 0;  // ARRIVAL
+            first_event.cpu_id = -1;     // not assigned to a CPU yet
             first_event.process = first_proc;
             insert_event(first_event);
             
@@ -207,14 +247,14 @@ class Simulation {
 
                 // Update ready queue area before advancing clock
                 double dt = event.time - last_event_time;
-                ready_queue_area += ready_queue_len() * dt;
+                ready_queue_area += total_ready_queue_len() * dt;
                 last_event_time = event.time;
                 clock = event.time;
 
                 if (event.event_type == 0) {  // ARRIVAL
                     handle_arrival(event.process);
                 } else {  // DEPARTURE
-                    handle_departure(event.process);
+                    handle_departure(event.process, event.cpu_id);
                 }
             }
         }
@@ -222,7 +262,7 @@ class Simulation {
         void output_results() {
             double avg_turnaround = accumulated_turnaround_time / completed_count;
             double throughput = completed_count / clock;
-            double cpu_utilization = accumulated_busy_time / clock;
+            double cpu_utilization = accumulated_busy_time / (num_cpus * clock);
             double avg_ready_queue = ready_queue_area / clock;
 
             std::cout << avg_turnaround << std::endl;
@@ -235,9 +275,9 @@ class Simulation {
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 4) {
+    if (argc != 5) {
         std::cerr << "Usage: " << argv[0] 
-                  << " <avg_arrival_rate> <avg_service_time> <scheduling_policy>"
+                  << " <avg_arrival_rate> <avg_service_time> <scenario> <num_cpus>"
                   << std::endl;
         return 1;
     }
@@ -246,16 +286,19 @@ int main(int argc, char *argv[]) {
     // input parameters for the simulation (entered by user)
     double avg_arrival_rate, 
            avg_service_time;
-    int scheduling_policy;      // 0 for FCFS, 1 for SJF
+    int scenario;               // 1 or 2
+    int num_cpus;               // number of CPUs
 
     avg_arrival_rate = std::atof(argv[1]);
-    avg_service_time = std::atof(argv[2]);  // Fixed: was incorrectly inverting the service time
-    scheduling_policy = std::atoi(argv[3]);
+    avg_service_time = std::atof(argv[2]);
+    scenario = std::atoi(argv[3]);
+    num_cpus = std::atoi(argv[4]);
 
     Simulation sim(PROCESS_LIMIT, 
                     avg_arrival_rate, 
                     avg_service_time, 
-                    scheduling_policy);
+                    scenario,
+                    num_cpus);
     sim.run();
     sim.output_results();
     return 0;
