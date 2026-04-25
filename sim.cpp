@@ -100,6 +100,7 @@ class Simulation {
         double clock = 0.0;
         int completed_count = 0;
         std::vector<CPU> cpus;
+        std::deque<Process> global_ready_queue;
         
         std::vector<Event> event_queue;
         int next_pid = 0;
@@ -115,6 +116,15 @@ class Simulation {
             return dist(rng);
         }
 
+        int find_free_cpu() {
+            for (int i = 0; i < num_cpus; ++i) {
+                if (!cpus[i].is_busy()) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
         void insert_event(const Event& e) {
             auto it = event_queue.begin();
             while (it != event_queue.end() && it->time <= e.time) {
@@ -125,8 +135,19 @@ class Simulation {
 
         int total_ready_queue_len() const {
             int total = 0;
-            for (const auto& cpu : cpus) {
-                total += cpu.queue_length();
+            switch (scenario) {
+                case 1:
+                    // Scenario 1: sum all per-CPU queues
+                    for (const auto& cpu : cpus) {
+                        total += cpu.queue_length();
+                    }
+                    break;
+                case 2:
+                    // Scenario 2: only count global queue
+                    total = global_ready_queue.size();
+                    break;
+                default:
+                    break;
             }
             return total;
         }
@@ -149,27 +170,57 @@ class Simulation {
             next_arrival_event.process = next_proc;
             insert_event(next_arrival_event);
 
-            // Select a random CPU for this process
-            int selected_cpu = select_random_cpu();
-            CPU& cpu = cpus[selected_cpu];
+            switch (scenario) {
+                case 1: {
+                    // Scenario 1: Select a random CPU, use per-CPU ready queue
+                    int selected_cpu = select_random_cpu();
+                    CPU& cpu = cpus[selected_cpu];
 
-            // Handle current process
-            if (!cpu.is_busy()) {
-                // CPU is free, start serving immediately
-                cpu.set_busy(true);
-                cpu.set_current_process(proc);
-                Process* current = cpu.get_current_process();
-                current->start_time = clock;
-                
-                Event departure_event;
-                departure_event.time = clock + current->service_time;
-                departure_event.event_type = 1;  // DEPARTURE
-                departure_event.cpu_id = selected_cpu;
-                departure_event.process = *current;
-                insert_event(departure_event);
-            } else {
-                // CPU is busy, put in ready queue
-                cpu.enqueue(proc);
+                    if (!cpu.is_busy()) {
+                        // CPU is free, start serving immediately
+                        cpu.set_busy(true);
+                        cpu.set_current_process(proc);
+                        Process* current = cpu.get_current_process();
+                        current->start_time = clock;
+                        
+                        Event departure_event;
+                        departure_event.time = clock + current->service_time;
+                        departure_event.event_type = 1;  // DEPARTURE
+                        departure_event.cpu_id = selected_cpu;
+                        departure_event.process = *current;
+                        insert_event(departure_event);
+                    } else {
+                        // CPU is busy, put in its ready queue
+                        cpu.enqueue(proc);
+                    }
+                    break;
+                }
+                case 2: {
+                    // Scenario 2: Find any free CPU or add to global queue
+                    int free_cpu = find_free_cpu();
+                    
+                    if (free_cpu != -1) {
+                        // A CPU is free, start serving immediately
+                        CPU& cpu = cpus[free_cpu];
+                        cpu.set_busy(true);
+                        cpu.set_current_process(proc);
+                        Process* current = cpu.get_current_process();
+                        current->start_time = clock;
+                        
+                        Event departure_event;
+                        departure_event.time = clock + current->service_time;
+                        departure_event.event_type = 1;  // DEPARTURE
+                        departure_event.cpu_id = free_cpu;
+                        departure_event.process = *current;
+                        insert_event(departure_event);
+                    } else {
+                        // All CPUs are busy, add to global queue
+                        global_ready_queue.push_back(proc);
+                    }
+                    break;
+                }
+                default:
+                    break;
             }
         }
 
@@ -182,23 +233,54 @@ class Simulation {
             accumulated_busy_time += finished_proc.service_time;
             completed_count++;
             
-            if (cpu.has_ready_process()) {
-                // Serve next process from ready queue
-                Process next_proc = cpu.dequeue();
-                next_proc.start_time = clock;
-                cpu.set_current_process(next_proc);
-                
-                Process* current = cpu.get_current_process();
-                Event departure_event;
-                departure_event.time = clock + current->service_time;
-                departure_event.event_type = 1;  // DEPARTURE
-                departure_event.cpu_id = cpu_id;
-                departure_event.process = *current;
-                insert_event(departure_event);
-            } else {
-                // No more processes waiting, CPU becomes idle
-                cpu.set_busy(false);
-                cpu.clear_current_process();
+            switch (scenario) {
+                case 1: {
+                    // Scenario 1: Use per-CPU ready queue
+                    if (cpu.has_ready_process()) {
+                        // Serve next process from ready queue
+                        Process next_proc = cpu.dequeue();
+                        next_proc.start_time = clock;
+                        cpu.set_current_process(next_proc);
+                        
+                        Process* current = cpu.get_current_process();
+                        Event departure_event;
+                        departure_event.time = clock + current->service_time;
+                        departure_event.event_type = 1;  // DEPARTURE
+                        departure_event.cpu_id = cpu_id;
+                        departure_event.process = *current;
+                        insert_event(departure_event);
+                    } else {
+                        // No more processes waiting, CPU becomes idle
+                        cpu.set_busy(false);
+                        cpu.clear_current_process();
+                    }
+                    break;
+                }
+                case 2: {
+                    // Scenario 2: Use global ready queue
+                    if (!global_ready_queue.empty()) {
+                        // Serve next process from global queue
+                        Process next_proc = global_ready_queue.front();
+                        global_ready_queue.pop_front();
+                        next_proc.start_time = clock;
+                        cpu.set_current_process(next_proc);
+                        
+                        Process* current = cpu.get_current_process();
+                        Event departure_event;
+                        departure_event.time = clock + current->service_time;
+                        departure_event.event_type = 1;  // DEPARTURE
+                        departure_event.cpu_id = cpu_id;
+                        departure_event.process = *current;
+                        insert_event(departure_event);
+                    } else {
+                        // No more processes waiting, CPU becomes idle
+                        cpu.set_busy(false);
+                        cpu.clear_current_process();
+                    }
+                    break;
+                }
+                default:
+                    break;
             }
         }
 
@@ -240,7 +322,6 @@ class Simulation {
             clock = inter_arrival;
             last_event_time = 0.0;
 
-            // Main event loop
             while (completed_count < MAX_PROCESSES && !event_queue.empty()) {
                 Event event = event_queue.front();
                 event_queue.erase(event_queue.begin());
